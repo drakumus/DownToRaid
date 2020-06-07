@@ -323,6 +323,7 @@ function haveConversation(msg_contents)
       let Embed = new Discord.MessageEmbed()
         .setTitle(current_event.name)
         .setAuthor(current_event.organizer.username, current_event.organizer.avatarURL())
+        .setDescription("React to select your preferred role.")
         .setColor(0xFF0000);
       Embed.addField("Date", `${current_event.date} for ${current_event.duration}`, false);
       for(role of current_event.roles)
@@ -342,6 +343,7 @@ function haveConversation(msg_contents)
           sentMsg.react(role);
         }
       });
+      current_event.state = CONVERSATION_STATE.DONE;
       break;
   }
 }

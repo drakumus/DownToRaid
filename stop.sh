@@ -1,0 +1,1 @@
+forever stop bot.js
