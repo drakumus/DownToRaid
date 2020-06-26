@@ -148,7 +148,7 @@ bot.on('messageReactionAdd', (reaction, user) => {
         let attendees = attendance_field.value.split('\n');
         if(attendees.length > 10)
         {
-          attendees = attendees.splice(9, 0, '---Subs---');
+          attendees.splice(10, 0, '---Subs---');
         }
         attendance_field.value = attendees.join('\n');
 
@@ -166,24 +166,19 @@ bot.on('messageReactionAdd', (reaction, user) => {
   }
 })
 
-function removeUserFromField(field_value, user)
+function removeUserFromField(field_value, user, is_attendance = false)
 {
-  let user_index = field_value.indexOf(`<@${user.id}>`);
+  let attendees = field_value.split("\n");
+  let user_index = attendees.indexOf(`<@${user.id}>`);
   if(user_index > -1)
   {
-    if(user_index > 0)
+    attendees.splice(user_index, 1);
+    if(is_attendance && attendees.length === 11) // including subs
     {
-      // need to remove new line too
-      field_value = field_value.replace(`\n<@${user.id}>`, "");
-      let attendees = field_value.split("\n");
-      if(attendees.length === 10)
-      {
-        field_value.replace("\n---Subs---", "");
-      }
-    } else
-    {
-      field_value = field_value.replace(`<@${user.id}>`, "");
+      let sub_index = attendees.indexOf("---Subs---");
+      attendees.splice(sub_index, 1);
     }
+    field_value = attendees.join("\n");
   }
   return field_value.length !== 0 ? field_value : "None";
 }
@@ -214,7 +209,7 @@ bot.on('messageReactionRemove', (reaction, user) => {
         // remove user who unreacted from attendance since the 1 role they had is being removed
         if(num_roles == 2) {
           let attendance_field = embed.fields[embed.fields.length-1];
-          attendance_field.value = removeUserFromField(attendance_field.value, user);
+          attendance_field.value = removeUserFromField(attendance_field.value, user, true);
         }
       }
     }
