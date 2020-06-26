@@ -132,7 +132,6 @@ bot.on('messageReactionAdd', (reaction, user) => {
         {
           role_field.value += `\n<@${user.id}>`;
         }
-        //embed.fields[field_index] = role_field;
 
         let attendance_field = embed.fields[embed.fields.length-1]
         if(!attendance_field.value.includes(`<@${user.id}>`))
@@ -145,6 +144,13 @@ bot.on('messageReactionAdd', (reaction, user) => {
             attendance_field.value += `\n<@${user.id}>`;
           }
         }
+
+        let attendees = attendance_field.value.split('\n');
+        if(attendees.length > 10)
+        {
+          attendees = attendees.splice(9, 0, '---Subs---');
+        }
+        attendance_field.value = attendees.join('\n');
 
         message.edit(embed);
       }
@@ -169,6 +175,11 @@ function removeUserFromField(field_value, user)
     {
       // need to remove new line too
       field_value = field_value.replace(`\n<@${user.id}>`, "");
+      let attendees = field_value.split("\n");
+      if(attendees.length === 10)
+      {
+        field_value.replace("\n---Subs---", "");
+      }
     } else
     {
       field_value = field_value.replace(`<@${user.id}>`, "");
