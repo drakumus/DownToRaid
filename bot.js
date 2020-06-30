@@ -31,6 +31,7 @@ const roles = {
 const special = ['❗', '❕', '‼️'];
 
 var special_role_count = 0;
+//
 var current_event = {
   roles: [],
   special: {},
@@ -44,7 +45,7 @@ bot.on('ready', () => {
 
 bot.on('message', msg => {
   // check if in a conversation
-  if(current_event.organizer && (msg.author.id === current_event.organizer.id))
+  if(current_event.organizer && (msg.author.id === current_event.organizer.id) && (msg.channel instanceof Discord.DMChannel))
   {
     haveConversation(msg.content);
   }
@@ -146,7 +147,7 @@ bot.on('messageReactionAdd', (reaction, user) => {
         }
 
         let attendees = attendance_field.value.split('\n');
-        if(attendees.length > 10)
+        if(attendees.length === 11)
         {
           attendees.splice(10, 0, '---Subs---');
         }
