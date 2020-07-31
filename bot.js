@@ -31,10 +31,9 @@ const roles = {
 const special = ['❗', '❕', '‼️'];
 
 var special_role_count = 0;
-//
-var current_event = {
-  roles: [],
-  special: {},
+
+var tracked_events = {
+
 }
 
 bot.login(secret.bot.token);
@@ -44,10 +43,10 @@ bot.on('ready', () => {
 });
 
 bot.on('message', msg => {
-  // check if in a conversation
-  if(current_event.organizer && (msg.author.id === current_event.organizer.id) && (msg.channel instanceof Discord.DMChannel))
+  // check if in a conversation with person
+  if((msg.author.id in tracked_events) && (msg.channel instanceof Discord.DMChannel))
   {
-    haveConversation(msg.content);
+    haveConversation(msg.author.id, msg.content);
   }
   // get the command
   let command_match = msg.content.match(/(?<=!)[a-zA-Z]+/g);
@@ -65,12 +64,16 @@ bot.on('message', msg => {
   switch(command)
   {
     case 'event':
-      current_event.organizer = msg.author;
-      current_event.channel = msg.channel;
-      current_event.state = CONVERSATION_STATE.START
-      haveConversation();
+      tracked_events[msg.author.id] = {
+        organizer: msg.author,
+        channel: msg.channel,
+        state: CONVERSATION_STATE.START,
+        roles: [],
+        special: {}
+      }
+      haveConversation(msg.author.id);
       break;
-    case 'embed':
+    case 'embed': // test command
       let Embed = new Discord.MessageEmbed()
         .setTitle("Test Embed")
         .setDescription("Please react with your preferred role.")
@@ -107,59 +110,78 @@ bot.on('messageReactionAdd', (reaction, user) => {
   if(message.author.id === bot.user.id && (user.id !== bot.user.id) && message.embeds.length > 0)
   {
     let embed = message.embeds[0]
-    if(embed.title/* && embed.title === "Test Embed"*/)
+    let current_event = {};
+    // find the current event
+    if(user.id in tracked_events)
     {
-      // get the role's field title, handle special case for special roles
-      let role_title = `${emoji.name} ${roles[emoji.name]}`
-      if(emoji.name === "❗"  || emoji.name === "❕" || emoji.name === "‼️")
-      {
-        role_title = `${emoji.name} ${current_event.special[emoji.name].value}`;
-      }
-      for(var field_index = 0; field_index < embed.fields.length; field_index++)
-      {
-        let field = embed.fields[field_index];
-        if(field.name === role_title)
-        {
-          var role_field = field;
-          break;
-        }
-      }
-      if(role_field)
-      {
-        if(role_field.value === "None")
-        {
-          role_field.value = `<@${user.id}>`;
-        } else
-        {
-          role_field.value += `\n<@${user.id}>`;
-        }
+      current_event = tracked_events[user.id];
+    } else
+    {
+      console.log("Error! Reacted event does not match any currently tracked events");
+      return;
+    }
 
-        let attendance_field = embed.fields[embed.fields.length-1]
-        if(!attendance_field.value.includes(`<@${user.id}>`))
-        {
-          if(attendance_field.value === "None")
-          {
-            attendance_field.value = `<@${user.id}>`;
-          } else
-          {
-            attendance_field.value += `\n<@${user.id}>`;
-          }
-        }
-
-        let attendees = attendance_field.value.split('\n');
-        if(attendees.length === 11)
-        {
-          attendees.splice(10, 0, '---Subs---');
-        }
-        attendance_field.value = attendees.join('\n');
-
-        message.edit(embed);
+    // get the role's field title, handle special case for special roles
+    let role_title = `${emoji.name} ${roles[emoji.name]}`
+    if(emoji.name === "❗"  || emoji.name === "❕" || emoji.name === "‼️")
+    {
+      role_title = `${emoji.name} ${current_event.special[emoji.name].value}`;
+    }
+    for(var field_index = 0; field_index < embed.fields.length; field_index++)
+    {
+      let field = embed.fields[field_index];
+      if(field.name === role_title)
+      {
+        var role_field = field;
+        break;
       }
     }
+    if(role_field)
+    {
+      if(role_field.value === "None")
+      {
+        role_field.value = `<@${user.id}>`;
+      } else
+      {
+        role_field.value += `\n<@${user.id}>`;
+      }
+
+      let attendance_field = embed.fields[embed.fields.length-1]
+      if(!attendance_field.value.includes(`<@${user.id}>`))
+      {
+        if(attendance_field.value === "None")
+        {
+          attendance_field.value = `<@${user.id}>`;
+        } else
+        {
+          attendance_field.value += `\n<@${user.id}>`;
+        }
+      }
+
+      let attendees = attendance_field.value.split('\n');
+      if(attendees.length === 11)
+      {
+        attendees.splice(10, 0, '---Subs---');
+      }
+      attendance_field.value = attendees.join('\n');
+
+      message.edit(embed);
+    }
   } else if(message.author.id === bot.user.id && (user.id !== bot.user.id) && message.content.includes("Please react to the roles you wish to offer from the following list")) {
+    let current_event = {};
+    // find the current event
+    if(user.id in tracked_events)
+    {
+      current_event = tracked_events[user.id];
+    } else
+    {
+      console.log("Error! Reacted event does not match any currently tracked events");
+      return;
+    }
+
     if(emoji.name === "✅")
     {
-      haveConversation("done");
+      haveConversation(user.id, "done");
       return;
     }
     let role = roles[emoji.name]
@@ -178,6 +200,11 @@ function removeUserFromField(field_value, user, is_attendance = false)
     {
       let sub_index = attendees.indexOf("---Subs---");
       attendees.splice(sub_index, 1);
+    } else if(is_attendance && user_index < 10 && attendees.length > 11) // move the ---Subs--- field if someone below it is no longer signed up
+    {
+      let sub_index = attendees.indexOf("---Subs---");
+      attendees.splice(sub_index, 1);
+      attendees.splice(10, 0, '---Subs---');
     }
     field_value = attendees.join("\n");
   }
@@ -188,30 +215,44 @@ bot.on('messageReactionRemove', (reaction, user) => {
   let message = reaction.message, emoji = reaction.emoji;
   if(message.author.id === bot.user.id && (user.id !== bot.user.id) && message.embeds.length > 0) {
     let embed = message.embeds[0];
-    if(embed.title/* && embed.title === "Test Embed"*/) {
-      // get the role's field title, handle special case for special roles
-      let role_title = `${emoji.name} ${roles[emoji.name]}`
-      if(emoji.name === "❗"  || emoji.name === "❕" || emoji.name === "‼️")
+    let current_event = {};
+    // find the current event
+    for(author in tracked_events)
+    {
+      // always expect an author for embeds from this bot
+      if(author.username === embed.author.name)
       {
-        role_title = `${emoji.name} ${current_event.special[emoji.name].value}`;
+        current_event = tracked_events[author];
       }
-      let num_roles = 0;
-      for(var field_index = 0; field_index < embed.fields.length; field_index++) {
-        let field = embed.fields[field_index];
-        if(field.name === role_title) {
-          var role_field = field;
-        }
-        if(field.value.includes(`<@${user.id}>`)) {
-          num_roles++;
-        }
+    }
+    if(current_event === {})
+    {
+      console.log("Error! Reacted event does not match any currently tracked events");
+      return;
+    }
+  
+    // get the role's field title, handle special case for special roles
+    let role_title = `${emoji.name} ${roles[emoji.name]}`
+    if(emoji.name === "❗"  || emoji.name === "❕" || emoji.name === "‼️")
+    {
+      role_title = `${emoji.name} ${current_event.special[emoji.name].value}`;
+    }
+    let num_roles = 0;
+    for(var field_index = 0; field_index < embed.fields.length; field_index++) {
+      let field = embed.fields[field_index];
+      if(field.name === role_title) {
+        var role_field = field;
       }
-      if(role_field) {
-        role_field.value = removeUserFromField(role_field.value, user);
-        // remove user who unreacted from attendance since the 1 role they had is being removed
-        if(num_roles == 2) {
-          let attendance_field = embed.fields[embed.fields.length-1];
-          attendance_field.value = removeUserFromField(attendance_field.value, user, true);
-        }
+      if(field.value.includes(`<@${user.id}>`)) {
+        num_roles++;
+      }
+    }
+    if(role_field) {
+      role_field.value = removeUserFromField(role_field.value, user);
+      // remove user who unreacted from attendance since the 1 role they had is being removed
+      if(num_roles == 2) {
+        let attendance_field = embed.fields[embed.fields.length-1];
+        attendance_field.value = removeUserFromField(attendance_field.value, user, true);
       }
     }
     message.edit(embed);
@@ -222,8 +263,9 @@ bot.on('messageReactionRemove', (reaction, user) => {
   }
 })
 
-function haveConversation(msg_contents)
+function haveConversation(message_author_id, msg_contents)
 {
+  let current_event = tracked_events[message_author_id];
   console.log(current_event.state)
   switch(current_event.state)
   {
@@ -250,7 +292,7 @@ function haveConversation(msg_contents)
       current_event.date = msg_contents;
 
       current_event.organizer.send("Please react to the roles you wish to offer from the following list. Once you're done react with ✅:\n\
-        🛡️ tank\n\
+        🛡️ Tank\n\
         💚 Druid\n\
         💙 Healbrand\n\
         🧡 Other Healer\n\
@@ -297,7 +339,7 @@ function haveConversation(msg_contents)
             current_event.specials_to_set++;
           }
         }
-        haveConversation(); // progress to next prompt in next state
+        haveConversation(message_author_id); // progress to next prompt in next state
       }
       break;
     case CONVERSATION_STATE.SPECIAL:
@@ -321,7 +363,7 @@ function haveConversation(msg_contents)
       if(current_event.specials_to_set === 0)
       {
         current_event.state = CONVERSATION_STATE.CONFIRM;
-        haveConversation();
+        haveConversation(message_author_id);
       }
 
       break;
