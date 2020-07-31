@@ -217,15 +217,10 @@ bot.on('messageReactionRemove', (reaction, user) => {
     let embed = message.embeds[0];
     let current_event = {};
     // find the current event
-    for(author in tracked_events)
+    if(user.id in tracked_events)
     {
-      // always expect an author for embeds from this bot
-      if(author.username === embed.author.name)
-      {
-        current_event = tracked_events[author];
-      }
-    }
-    if(current_event === {})
+      current_event = tracked_events[user.id];
+    } else
     {
       console.log("Error! Reacted event does not match any currently tracked events");
       return;
@@ -277,14 +272,14 @@ function haveConversation(message_author_id, msg_contents)
       current_event.organizer.send(`You've set the event name to: ${msg_contents}`);
       current_event.name = msg_contents;
 
-      current_event.organizer.send("Please enter how long you plan the event to run for.");
+      current_event.organizer.send(`Please enter how long you plan the event to run for. i.e. "2 hrs"`);
       current_event.state = CONVERSATION_STATE.DURATION;
       break;
     case CONVERSATION_STATE.DURATION:
       current_event.organizer.send(`You've set the event duration to: ${msg_contents}`);
       current_event.duration = msg_contents;
 
-      current_event.organizer.send("Please enter when this is happening relative to reset.");
+      current_event.organizer.send(`Please enter when this is happening. Tip: Make the time relative to reset i.e. enter "2hrs after reset"`);
       current_event.state = CONVERSATION_STATE.DATE;
       break;
     case CONVERSATION_STATE.DATE:
@@ -368,13 +363,22 @@ function haveConversation(message_author_id, msg_contents)
 
       break;
     case CONVERSATION_STATE.CONFIRM:
+      let description = "React to select the roles you'd like to play.";
+      if(current_event.roles.indexOf("❓") > 0)
+      {
+        description += "\nThis is a **learner friendly** raid! Feel free to react to roles you wish to learn on."
+      } else
+      {
+        description += "\nThis is an **experienced** raid! No learner role is present, please sign up for roles you are experienced on."
+      }
       current_event.organizer.send("Please confirm the following message looks correct:");
       let Embed = new Discord.MessageEmbed()
         .setTitle(current_event.name)
         .setAuthor(current_event.organizer.username, current_event.organizer.avatarURL())
-        .setDescription("React to select your preferred role.")
+        .setDescription(description)
         .setColor(0xFF0000);
-      Embed.addField("Date", `${current_event.date} for ${current_event.duration}`, false);
+      Embed.addField("📅 Date", `${current_event.date}`, false);
+      Embed.addField("⌛ Duration",  `${current_event.duration}`, false)
       for(role of current_event.roles)
       {
         let role_name = roles[role];
